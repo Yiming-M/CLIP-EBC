@@ -1,3 +1,13 @@
+# Data
+data/
+
+# CLIP weights and configs
+models/clip/_clip/configs/*
+models/clip/_clip/weights/*
+
+# MacOS
+**/.DS_Store
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
