@@ -25,9 +25,9 @@ parser.add_argument("--model", type=str, default="vgg19_ae", help="The model to 
 parser.add_argument("--input_size", type=int, default=448, help="The size of the input image.")
 parser.add_argument("--reduction", type=int, default=8, choices=[8, 16, 32], help="The reduction factor of the model.")
 parser.add_argument("--truncation", type=int, default=None, help="The truncation of the count.")
-parser.add_argument("--anchor_points", type=str, default="average", choices=["average", "middle"], help="The anchor points for dynamic bins.")
+parser.add_argument("--anchor_points", type=str, default="average", choices=["average", "middle"], help="The representative count values of bins.")
 parser.add_argument("--prompt_type", type=str, default="number", choices=["word", "number"], help="The prompt type for CLIP.")
-
+parser.add_argument("--granularity", type=str, default="fine", choices=["fine", "dynamic", "coarse"], help="The granularity of bins.")
 # Parameters for dataset
 parser.add_argument("--dataset", type=str, required=True, help="The dataset to train on.")
 parser.add_argument("--batch_size", type=int, default=8, help="The training batch size.")
@@ -93,8 +93,8 @@ def run(local_rank: int, nprocs: int, args: ArgumentParser) -> None:
     else:
         with open(os.path.join(current_dir, "configs", f"reduction_{args.reduction}.json"), "r") as f:
             config = json.load(f)[str(args.truncation)][args.dataset]
-        bins = config["bins"]
-        anchor_points = config["anchor_points"]["average"] if args.anchor_points == "average" else config["anchor_points"]["middle"]
+        bins = config["bins"][args.granularity]
+        anchor_points = config["anchor_points"][args.granularity]["average"] if args.anchor_points == "average" else config["anchor_points"][args.granularity]["middle"]
         bins = [(float(b[0]), float(b[1])) for b in bins]
         anchor_points = [float(p) for p in anchor_points]
     args.bins = bins
@@ -115,7 +115,8 @@ def run(local_rank: int, nprocs: int, args: ArgumentParser) -> None:
     optimizer, scheduler = get_optimizer(args, model)
 
     ckpt_dir_name = f"{args.model}_{args.prompt_type}_" if "clip" in args.model else f"{args.model}_"
-    ckpt_dir_name += f"{args.input_size}_{args.truncation}_{args.weight_count_loss}_{args.count_loss}" + ("_aug" if args.augment else "")
+    ckpt_dir_name += f"{args.input_size}_{args.reduction}_{args.truncation}_{args.granularity}_"
+    ckpt_dir_name += f"{args.weight_count_loss}_{args.count_loss}" + ("_aug" if args.augment else "")
 
     args.ckpt_dir = os.path.join(current_dir, "checkpoints", args.dataset, ckpt_dir_name)
     os.makedirs(args.ckpt_dir, exist_ok=True)
