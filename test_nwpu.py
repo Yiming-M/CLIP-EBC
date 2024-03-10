@@ -16,6 +16,7 @@ parser.add_argument("--input_size", type=int, default=448, help="The size of the
 parser.add_argument("--reduction", type=int, default=8, choices=[8, 16, 32], help="The reduction factor of the model.")
 parser.add_argument("--truncation", type=int, default=None, help="The truncation of the count.")
 parser.add_argument("--anchor_points", type=str, default="average", choices=["average", "middle"], help="The anchor points for dynamic bins.")
+parser.add_argument("--granularity", type=str, default="fine", choices=["fine", "dynamic", "coarse"], help="The granularity of the bins.")
 parser.add_argument("--prompt_type", type=str, default="number", choices=["word", "number"], help="The prompt type for CLIP.")
 parser.add_argument("--weight_path", type=str, required=True, help="The path to the weights of the model.")
 
@@ -38,8 +39,8 @@ def main(args: ArgumentParser):
     else:
         with open(os.path.join(current_dir, "configs", f"reduction_{args.reduction}.json"), "r") as f:
             config = json.load(f)[str(args.truncation)]["nwpu"]
-        bins = config["bins"]
-        anchor_points = config["anchor_points"]["average"] if args.anchor_points == "average" else config["anchor_points"]["middle"]
+        bins = config["bins"][args.granularity]
+        anchor_points = config["anchor_points"][args.granularity]["average"] if args.anchor_points == "average" else config["anchor_points"][args.granularity]["middle"]
         bins = [(float(b[0]), float(b[1])) for b in bins]
         anchor_points = [float(p) for p in anchor_points]
     args.bins = bins
