@@ -46,5 +46,5 @@ python test_nwpu.py \
 
 | **Methods**                   | **MAE** | **RMSE** |
 | ------------------------------|---------|----------|
-| DMCount-EBC (based on VGG-19) | 83.7    | 376.03   |
-| CLIP-EBC (based on ResNet50)  | 78.3    | 358.3    |
+| DMCount-EBC (based on VGG-19) | 83.7    | 376.0    |
+| CLIP-EBC (based on ResNet50)  | 75.8    | 367.3    |
