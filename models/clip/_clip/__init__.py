@@ -166,16 +166,16 @@ def resnet50x64_clip(input_size: Optional[Union[int, Tuple[int, int]]] = None) -
     return _clip("resnet50x64", input_size)
 
 def vit_b_32_clip(input_size: Optional[Union[int, Tuple[int, int]]] = None) -> CLIP:
-    return _vit("vit_b_32", input_size)
+    return _clip("vit_b_32", input_size)
 
 def vit_b_16_clip(input_size: Optional[Union[int, Tuple[int, int]]] = None) -> CLIP:
-    return _vit("vit_b_16", input_size)
+    return _clip("vit_b_16", input_size)
 
 def vit_l_14_clip(input_size: Optional[Union[int, Tuple[int, int]]] = None) -> CLIP:
-    return _vit("vit_l_14", input_size)
+    return _clip("vit_l_14", input_size)
 
 def vit_l_14_336px_clip(input_size: Optional[Union[int, Tuple[int, int]]] = None) -> CLIP:
-    return _vit("vit_l_14_336px", input_size)
+    return _clip("vit_l_14_336px", input_size)
 
 
 # CLIP image encoders
