@@ -1,4 +1,4 @@
-# CLIP-EBC
+# CLIP-EBC: CLIP Can Count Accurately through Enhanced Blockwise Classification
 
 The official implementation of CLIP-EBC, proposed in the paper [*CLIP-EBC: CLIP Can Count Accurately through Enhanced Blockwise Classification*](https://arxiv.org/abs/2403.09281v1).
 
