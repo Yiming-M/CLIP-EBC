@@ -7,6 +7,10 @@
 
 The official implementation of **CLIP-EBC**, proposed in the paper [*CLIP-EBC: CLIP Can Count Accurately through Enhanced Blockwise Classification*](https://arxiv.org/abs/2403.09281v1).
 
+## 📣 Announcement
+
+For CLIP-ViT, the current code only supports finetuning the whole image backbone (ViT). We are experimenting using [VPT](https://arxiv.org/abs/2203.12119) to see whether it can provide better results.
+
 ## Citation
 
 If you find this work useful, please consider to cite:
