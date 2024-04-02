@@ -5,7 +5,7 @@
 [![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/clip-ebc-clip-can-count-accurately-through/crowd-counting-on-shanghaitech-b)](https://paperswithcode.com/sota/crowd-counting-on-shanghaitech-b?p=clip-ebc-clip-can-count-accurately-through)
 [![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/clip-ebc-clip-can-count-accurately-through/crowd-counting-on-shanghaitech-a)](https://paperswithcode.com/sota/crowd-counting-on-shanghaitech-a?p=clip-ebc-clip-can-count-accurately-through)
 
-The official implementation of **CLIP-EBC**, proposed in the paper [*CLIP-EBC: CLIP Can Count Accurately through Enhanced Blockwise Classification*](https://arxiv.org/abs/2403.09281v1).
+The official implementation of **CLIP-EBC**, proposed in the paper [*CLIP-EBC: CLIP Can Count Accurately through Enhanced Blockwise Classification*](https://arxiv.org/abs/2403.09281v1). Pretrained weights are available on Google Drive [here](https://drive.google.com/drive/folders/1hEHRsyOxvtbnq8UR0iXnQ7kcKO7aaYVM?usp=sharing).
 
 ## 📣 Announcement
 
@@ -163,7 +163,7 @@ Arguments in `trainer.py`:
 
 ### 3. Testing on NWPU Test
 
-To evaluate get the result on NWPU Test, use the `test_nwpu.py` instead.
+To evaluate get the result on NWPU Test, use the `test_nwpu.py` instead. You can download the pretrained weights [here](https://drive.google.com/drive/folders/1hEHRsyOxvtbnq8UR0iXnQ7kcKO7aaYVM?usp=sharing).
 
 ```bash
 python test_nwpu.py \
