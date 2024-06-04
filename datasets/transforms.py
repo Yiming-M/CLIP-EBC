@@ -2,6 +2,7 @@ import torch
 from torch import Tensor
 from torchvision.transforms import ColorJitter as _ColorJitter
 import torchvision.transforms.functional as TF
+import numpy as np
 from typing import Tuple, Union, Optional, Callable
 
 
@@ -66,30 +67,72 @@ class Resize(object):
 
 
 class Resize2Multiple(object):
-    def __init__(self, base: int) -> None:
-        self.base = base
-        assert self.base > 0, f"base should be a positive integer, got {self.base}."
+    """
+    Resize the image so that it satisfies:
+        img_h = window_h + stride_h * n_h
+        img_w = window_w + stride_w * n_w
+    """
+    def __init__(
+        self,
+        window_size: Tuple[int, int],
+        stride: Tuple[int, int],
+    ) -> None:
+        window_size = (int(window_size), int(window_size)) if isinstance(window_size, (int, float)) else window_size
+        window_size = tuple(window_size)
+        stride = (int(stride), int(stride)) if isinstance(stride, (int, float)) else stride
+        stride = tuple(stride)
+        assert len(window_size) == 2, f"window_size should be a tuple (h, w), got {window_size}."
+        assert len(stride) == 2, f"stride should be a tuple (h, w), got {stride}."
+        assert all(s > 0 for s in window_size), f"window_size should be positive, got {window_size}."
+        assert all(s > 0 for s in stride), f"stride should be positive, got {stride}."
+        assert stride[0] <= window_size[0] and stride[1] <= window_size[1], f"stride should be no larger than window_size, got {stride} and {window_size}."
+        self.window_size = window_size
+        self.stride = stride
 
     def __call__(self, image: Tensor, label: Tensor) -> Tuple[Tensor, Tensor]:
         image_height, image_width = image.shape[-2:]
-        if image_height % self.base == 0 and image_width % self.base == 0:
+        window_height, window_width = self.window_size
+        stride_height, stride_width = self.stride
+        new_height = int(max(round((image_height - window_height) / stride_height), 0) * stride_height + window_height)
+        new_width = int(max(round((image_width - window_width) / stride_width), 0) * stride_width + window_width)
+
+        if new_height == image_height and new_width == image_width:
             return image, label
         else:
-            new_height = (image_height // self.base + 1) * self.base
-            new_width = (image_width // self.base + 1) * self.base
             return _resize(image, label, new_height, new_width)
 
 
 class ZeroPad2Multiple(object):
-    def __init__(self, base: int) -> None:
-        self.base = base
-        assert self.base > 0, f"base should be a positive integer, got {self.base}."
+    def __init__(
+        self,
+        window_size: Tuple[int, int],
+        stride: Tuple[int, int],
+    ) -> None:
+        window_size = (int(window_size), int(window_size)) if isinstance(window_size, (int, float)) else window_size
+        window_size = tuple(window_size)
+        stride = (int(stride), int(stride)) if isinstance(stride, (int, float)) else stride
+        stride = tuple(stride)
+        assert len(window_size) == 2, f"window_size should be a tuple (h, w), got {window_size}."
+        assert len(stride) == 2, f"stride should be a tuple (h, w), got {stride}."
+        assert all(s > 0 for s in window_size), f"window_size should be positive, got {window_size}."
+        assert all(s > 0 for s in stride), f"stride should be positive, got {stride}."
+        assert stride[0] <= window_size[0] and stride[1] <= window_size[1], f"stride should be no larger than window_size, got {stride} and {window_size}."
+        self.window_size = window_size
+        self.stride = stride
 
     def __call__(self, image: Tensor, label: Tensor) -> Tuple[Tensor, Tensor]:
         image_height, image_width = image.shape[-2:]
-        pad_height = (image_height // self.base + 1) * self.base - image_height
-        pad_width = (image_width // self.base + 1) * self.base - image_width
-        return TF.pad(image, (0, 0, pad_width, pad_height), fill=0), label  # only pad the right and bottom sides so that the label coordinates are not affected
+        window_height, window_width = self.window_size
+        stride_height, stride_width = self.stride
+        new_height = int(max(np.ceil((image_height - window_height) / stride_height), 0) * stride_height + window_height)
+        new_width = int(max(np.ceil((image_width - window_width) / stride_width), 0) * stride_width + window_width)
+
+        if new_height == image_height and new_width == image_width:
+            return image, label
+        else:
+            assert new_height >= image_height and new_width >= image_width, f"new size should be no less than the original size, got {new_height} and {new_width}."
+            pad_height, pad_width = new_height - image_height, new_width - image_width
+            return TF.pad(image, (0, 0, pad_width, pad_height), fill=0), label  # only pad the right and bottom sides so that the label coordinates are not affected
 
 
 class RandomResizedCrop(object):

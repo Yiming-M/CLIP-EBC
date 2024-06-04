@@ -24,17 +24,6 @@ def get_logger(log_file: str) -> logging.Logger:
 
 def get_config(config: Dict, mute: bool = False) -> str:
     config = config.copy()
-    augment_keys = [
-        "min_scale", "max_scale",
-        "brightness", "contrast", "saturation", "hue",
-        "kernel_size",
-        "saltiness", "spiciness",
-        "jitter_prob", "blur_prob", "noise_prob"
-    ]
-    if not config.get("augment", True):
-        for k in augment_keys:
-            config.pop(k)
-
     config = "\n".join([f"{k.ljust(15)}:\t{v}" for k, v in config.items()])
     if not mute:
         print(config)
@@ -62,7 +51,12 @@ def print_train_result(loss_info: Dict[str, float], mute: bool = False) -> Union
 
 
 def print_eval_result(curr_scores: Dict[str, float], best_scores: Dict[str, float], mute: bool = False) -> Union[str, None]:
-    scores = [f"Curr {k}: {curr_scores[k]:.4f}; Best {k}: {best_scores[k]:.4f};" for k in curr_scores.keys()]
+    scores = []
+    for k in curr_scores.keys():
+        info = f"Curr {k}: {curr_scores[k]:.4f}; \t Best {k}: "
+        info += " ".join([f"{best_scores[k][i]:.4f};" for i in range(len(best_scores[k]))])
+        scores.append(info)
+
     info = "Evaluation:\n" + "\n".join(scores)
     if mute:
         return info
@@ -78,17 +72,38 @@ def update_eval_result(
     epoch: int,
     curr_scores: Dict[str, float],
     hist_scores: Dict[str, List[float]],
-    best_scores: Dict[str, float],
+    best_scores: Dict[str, List[float]],
     writer: SummaryWriter,
     state_dict: OrderedDict[str, Tensor],
     ckpt_dir: str,
 ) -> Tuple[Dict[str, List[float]], Dict[str, float]]:
+    os.makedirs(ckpt_dir, exist_ok=True)
     for k, v in curr_scores.items():
         hist_scores[k].append(v)
         writer.add_scalar(f"val/{k}", v, epoch)
-        if v < best_scores[k]:  # Lower is better
-            best_scores[k] = v
-            torch.save(state_dict, os.path.join(ckpt_dir, f"best_{k}.pth"))
+
+        # best_scores[k][0] is the best score. Smaller is better.
+        # Find the location idx where the new score v should be inserted
+        loc = None
+        for i in range(len(best_scores[k])):
+            if v < best_scores[k][i]:
+                best_scores[k].insert(i, v)  # Add the new best score to the location i
+                loc = i
+                break
+
+        # If the new score is better than the worst best score
+        if loc is not None: 
+            # Update the best scores
+            best_scores[k] = best_scores[k][:len(best_scores[k]) - 1]
+
+            # Rename the best_{k}_{i}.pth to best_{k}_{i+1}.pth, best_{k}_{i+1}.pth to best_{k}_{i+2}.pth ...
+            for i in range(len(best_scores[k]) - 1, loc, -1):
+                if os.path.exists(os.path.join(ckpt_dir, f"best_{k}_{i-1}.pth")):
+                    os.rename(os.path.join(ckpt_dir, f"best_{k}_{i-1}.pth"), os.path.join(ckpt_dir, f"best_{k}_{i}.pth"))
+
+            # Save the best checkpoint
+            torch.save(state_dict, os.path.join(ckpt_dir, f"best_{k}_{loc}.pth"))    
+
     return hist_scores, best_scores
 
 

@@ -14,7 +14,7 @@ from .encoder import _timm_encoder
 curr_dir = os.path.abspath(os.path.dirname(__file__))
 
 
-class VanillaRegressor(nn.Module):
+class Regressor(nn.Module):
     def __init__(self, backbone: nn.Module) -> None:
         super().__init__()
         self.backbone = backbone
@@ -34,7 +34,7 @@ class VanillaRegressor(nn.Module):
         return x
 
 
-class VanillaClassifier(nn.Module):
+class Classifier(nn.Module):
     def __init__(
         self,
         backbone: nn.Module,
@@ -92,21 +92,21 @@ def _get_backbone(backbone: str, input_size: int, reduction: int) -> Callable:
         return partial(_timm_encoder, backbone=backbone, reduction=reduction)
 
 
-def _vanilla_regressor(
+def _regressor(
     backbone: str,
     input_size: int,
     reduction: int,
-) -> VanillaRegressor:
+) -> Regressor:
     backbone = _get_backbone(backbone.lower(), input_size, reduction)
-    return VanillaRegressor(backbone())
+    return Regressor(backbone())
 
 
-def _vanilla_classifier(
+def _classifier(
     backbone: nn.Module,
     input_size: int,
     reduction: int,
     bins: List[Tuple[float, float]],
     anchor_points: List[float],
-) -> VanillaClassifier:
+) -> Classifier:
     backbone = _get_backbone(backbone.lower(), input_size, reduction)
-    return VanillaClassifier(backbone(), bins, anchor_points)
+    return Classifier(backbone(), bins, anchor_points)

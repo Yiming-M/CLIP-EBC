@@ -20,8 +20,6 @@ available_datasets = [
     "jhu", "jhu_crowd", "jhu_crowd_v2"
 ]
 
-available_percentages = [1, 5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
-
 
 def standardize_dataset_name(dataset: str) -> str:
     assert dataset.lower() in available_datasets, f"Dataset {dataset} is not available."
@@ -43,7 +41,6 @@ class Crowd(Dataset):
         dataset: str,
         split: str,
         transforms: Optional[Callable] = None,
-        percentage: int = 100,
         sigma: Optional[float] = None,
         return_filename: bool = False,
         num_crops: int = 1,
@@ -53,17 +50,15 @@ class Crowd(Dataset):
         """
         assert dataset.lower() in available_datasets, f"Dataset {dataset} is not available."
         assert split in ["train", "val"], f"Split {split} is not available."
-        assert percentage in available_percentages, f"Percentage {percentage} is not available."
         assert num_crops > 0, f"num_crops should be positive, got {num_crops}."
 
         self.dataset = standardize_dataset_name(dataset)
         self.split = split
-        self.percentage = percentage
 
         self.__find_root__()
         self.__make_dataset__()
         self.__check_sanity__()
-        self.__load_labeled_indices__()
+        self.indices = list(range(len(self.image_names)))
 
         self.to_tensor = ToTensor()
         self.normalize = Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
@@ -132,14 +127,6 @@ class Crowd(Dataset):
                 assert len(self.image_names) == len(self.label_names) == 2772, f"JHU train split should have 2772 images, but found {len(self.image_names)}."
             else:
                 assert len(self.image_names) == len(self.label_names) == 1600, f"JHU val split should have 1600 images, but found {len(self.image_names)}."
-
-    def __load_labeled_indices__(self) -> None:
-        if self.percentage < 100 and self.split == "train":
-            with open(os.path.join(self.root, self.split, f"{self.percentage}%.txt"), "r") as f:
-                indices = f.read().splitlines()
-            self.indices = list(map(int, indices))  # indices of labeled images
-        else:
-            self.indices = list(range(len(self.image_names)))
 
     def __len__(self) -> int:
         return len(self.image_names)

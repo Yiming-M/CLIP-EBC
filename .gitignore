@@ -1,4 +1,5 @@
 # Data
+checkpoints/
 data/
 
 # CLIP weights and configs

@@ -1,5 +1,6 @@
 import torch
 from torch import nn, Tensor
+from torch.cuda.amp import autocast
 from typing import List, Any, Tuple, Dict
 
 from .bregman_pytorch import sinkhorn
@@ -33,6 +34,7 @@ class OTLoss(nn.Module):
         self.cood = self.cood / input_size * 2 - 1 if self.norm_cood else self.cood
         self.output_size = self.cood.size(1)
 
+    @autocast(enabled=True, dtype=torch.float32)  # avoid numerical instability
     def forward(self, pred_density: Tensor, normed_pred_density: Tensor, target_points: List[Tensor]) -> Tuple[Tensor, float, Tensor]:
         batch_size = normed_pred_density.size(0)
         assert len(target_points) == batch_size, f"Expected target_points to have length {batch_size}, but got {len(target_points)}"
@@ -94,6 +96,7 @@ class DMLoss(nn.Module):
         self.weight_ot = weight_ot
         self.weight_tv = weight_tv
 
+    @autocast(enabled=True, dtype=torch.float32)  # avoid numerical instability
     def forward(self, pred_density: Tensor, target_density: Tensor, target_points: List[Tensor]) -> Tuple[Tensor, Dict[str, Tensor]]:
         target_density = _reshape_density(target_density, reduction=self.ot_loss.reduction) if target_density.shape[-2:] != pred_density.shape[-2:] else target_density
         assert pred_density.shape == target_density.shape, f"Expected pred_density and target_density to have the same shape, got {pred_density.shape} and {target_density.shape}"

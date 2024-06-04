@@ -2,6 +2,7 @@ import torch
 from torch import nn
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
+from torch.cuda.amp import GradScaler, autocast
 import numpy as np
 from tqdm import tqdm
 from typing import Dict, Tuple
@@ -15,10 +16,11 @@ def train(
     data_loader: DataLoader,
     loss_fn: nn.Module,
     optimizer: Optimizer,
+    grad_scaler: GradScaler,
     device: torch.device,
     rank: int,
     nprocs: int,
-) -> Tuple[nn.Module, Optimizer, Dict[str, float]]:
+) -> Tuple[nn.Module, Optimizer, GradScaler, Dict[str, float]]:
     model.train()
     info = None
     data_iter = tqdm(data_loader) if rank == 0 else data_loader
@@ -30,14 +32,30 @@ def train(
         target_points = [p.to(device) for p in target_points]
         target_density = target_density.to(device)
         with torch.set_grad_enabled(True):
-            if not regression:
-                pred_class, pred_density = model(image)
-                loss, loss_info = loss_fn(pred_class, pred_density, target_density, target_points)
-            else:
-                pred_density = model(image)
-                loss, loss_info = loss_fn(pred_density, target_density, target_points)
 
-            optimizer.zero_grad()
+            if grad_scaler is not None:
+                with autocast(enabled=grad_scaler.is_enabled()):
+                    if not regression:
+                        pred_class, pred_density = model(image)
+                        loss, loss_info = loss_fn(pred_class, pred_density, target_density, target_points)
+                    else:
+                        pred_density = model(image)
+                        loss, loss_info = loss_fn(pred_density, target_density, target_points)
+
+            else:
+                if not regression:
+                    pred_class, pred_density = model(image)
+                    loss, loss_info = loss_fn(pred_class, pred_density, target_density, target_points)
+                else:
+                    pred_density = model(image)
+                    loss, loss_info = loss_fn(pred_density, target_density, target_points)
+
+        optimizer.zero_grad()
+        if grad_scaler is not None:
+            grad_scaler.scale(loss).backward()
+            grad_scaler.step(optimizer)
+            grad_scaler.update()
+        else:
             loss.backward()
             optimizer.step()
 
@@ -48,4 +66,4 @@ def train(
 
         barrier(ddp)
 
-    return model, optimizer, {k: np.mean(v) for k, v in info.items()}
+    return model, optimizer, grad_scaler, {k: np.mean(v) for k, v in info.items()}

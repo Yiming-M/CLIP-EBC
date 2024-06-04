@@ -1,7 +1,7 @@
-from .model import VanillaCLIP, _vanilla_clip
+from .model import CLIP_EBC, _clip_ebc
 
 
 __all__ = [
-    "VanillaCLIP",
-    "_vanilla_clip"
+    "CLIP_EBC",
+    "_clip_ebc",
 ]

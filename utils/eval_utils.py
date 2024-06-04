@@ -1,23 +1,18 @@
 import torch
 from torch import Tensor, nn
 import torch.nn.functional as F
-import torchvision.transforms.functional as TF
 import numpy as np
-from typing import Dict, Tuple, Union, Iterable, List, Optional
+from typing import Dict, Tuple, Union
 
 
-def calculate_errors(pred_counts: np.ndarray, target_counts: np.ndarray) -> Dict[str, float]:
+def calculate_errors(pred_counts: np.ndarray, gt_counts: np.ndarray) -> Dict[str, float]:
     assert isinstance(pred_counts, np.ndarray), f"Expected numpy.ndarray, got {type(pred_counts)}"
-    assert isinstance(target_counts, np.ndarray), f"Expected numpy.ndarray, got {type(target_counts)}"
-    assert len(pred_counts) == len(target_counts), f"Length of predictions and ground truths should be equal, but got {len(pred_counts)} and {len(target_counts)}"
+    assert isinstance(gt_counts, np.ndarray), f"Expected numpy.ndarray, got {type(gt_counts)}"
+    assert len(pred_counts) == len(gt_counts), f"Length of predictions and ground truths should be equal, but got {len(pred_counts)} and {len(gt_counts)}"
     errors = {
-        "mae": np.abs(pred_counts - target_counts),
-        "rmse": (pred_counts - target_counts) ** 2,
+        "mae": np.mean(np.abs(pred_counts - gt_counts)),
+        "rmse": np.sqrt(np.mean((pred_counts - gt_counts) ** 2)),
     }
-    errors["mrae"] = errors["mae"] / np.maximum(target_counts, 1.)  # mean relative absolute error, avoid division by zero
-    errors["rmrse"] = errors["rmse"] / np.maximum(target_counts, 1.) ** 2  # root mean relative squared error
-    errors = {k: v.mean() for k, v in errors.items()}
-    errors["rmse"], errors["rmrse"] = np.sqrt(errors["rmse"]), np.sqrt(errors["rmrse"])
     return errors
 
 
@@ -32,115 +27,70 @@ def sliding_window_predict(
     model: nn.Module,
     image: Tensor,
     window_size: Union[int, Tuple[int, int]],
-    stride: Optional[Union[int, Tuple[int, int]]] = None,
-    strategy: str = "mean",
+    stride: Union[int, Tuple[int, int]],
 ) -> Tensor:
     """
-    Use the sliding window strategy to predict the density map of an image.
-
-    Args:
-        model (nn.Module): The model to use for prediction.
-        image (Tensor): The image to predict.
-        window_size (Union[int, Tuple[int, int]]): The size of the window.
-        stride (Optional[Union[int, Tuple[int, int]]], optional): The stride of the window. Defaults to None. If None, stride is equal to window_size.
-        strategy (str, optional): The strategy to use to aggregate the predictions. Defaults to "mean".
-
-    Returns:
-        Tensor: The predicted density map.
-    """
-    window = (window_size, window_size) if isinstance(window_size, (int, float)) else window_size
-    stride = (stride, stride) if isinstance(stride, (int, float)) else stride
-    stride = window if stride is None else stride
-    assert isinstance(window, Iterable) and len(window) == 2 and window[0] > 0 and window[1] > 0, f"Window size must be a positive integer tuple (h, w), got {window}"
-    assert isinstance(stride, Iterable) and len(stride) == 2 and stride[0] > 0 and stride[1] > 0, f"Stride must be a positive integer tuple (h, w), got {stride}"
-    assert stride[0] <= window[0] and stride[1] <= window[1], f"Stride must be smaller than window size, got {stride} and {window}"
-    assert strategy in ["mean", "max"], f"Strategy must be either 'mean' or 'max', got {strategy}"
-    image = image.unsqueeze(0) if len(image.shape) == 3 else image
-    assert len(image.shape) == 4, f"Image must be a 3D tensor (h, w, c) or 4D tensor (b, h, w, c), got {image.shape}"
-
-    preds = []
-    for x, y, patch in _sliding_window(image, window_size=window, step_size=stride):
-        patch_density_map = _process_patch(model, patch)
-        preds.append((x, y, patch_density_map))
-
-    return _combine_patches(preds, image.shape[-2:], window, model.reduction, strategy)
-
-
-def _sliding_window(image: Tensor, window_size: Tuple[int, int], step_size: Tuple[int, int]) -> Iterable[Tuple[int, int, Tensor]]:
-    """
-    Sliding window generator over the image.
-
-    Args:
-        image (Tensor): The image (b, c, h, w) to slide over.
-        window_size (Tuple[int, int]): The size (h, w) of the window.
-        step_size (Tuple[int, int]): The step size (h, w) of the window.
-    """
-    assert len(image.shape) == 4, f"Image must be a 4D tensor (b, c, h, w), got {image.shape}"
-    img_h, img_w = image.shape[2:]
-    p_h, p_w = window_size
-    s_h, s_w = step_size
-    assert p_h <= img_h and p_w <= img_w, f"Window size must be smaller than image size, got window_size={window_size} and image.shape={image.shape}"
-    assert s_h <= p_h and s_w <= p_w, f"Step size must be smaller than window size, got step_size={step_size} and window_size={window_size}"
-
-    for y in range(0, img_h + s_h, s_h):
-        for x in range(0, img_w + s_w, s_w):
-            if y + p_h <= img_h and x + p_w <= img_w: # yield current window
-                yield (x, y, TF.crop(image, y, x, p_h, p_w))
-            elif y + p_h > img_h and x + p_w <= img_w: # yield the last window
-                yield (x, img_h - p_h, TF.crop(image, img_h - p_h, x, p_h, p_w))
-            elif y + p_h <= img_h and x + p_w > img_w: # yield the last window
-                yield (img_w - p_w, y, TF.crop(image, y, img_w - p_w, p_h, p_w))
-            else: # yield the last window
-                yield (img_w - p_w, img_h - p_h, TF.crop(image, img_h - p_h, img_w - p_w, p_h, p_w))
-
-
-def _process_patch(model: nn.Module, patch: Tensor) -> Tensor:
-    """
-    Process a patch with the given model.
+    Generate the density map for an image using the sliding window method. Overlapping regions will be averaged.
 
     Args:
         model (nn.Module): The model to use.
-        patch (Tensor): The patch to process.
+        image (Tensor): The image (1, c, h, w) to generate the density map for. The batch size must be 1 due to varying image sizes.
+        window_size (Union[int, Tuple[int, int]]): The size of the window.
+        stride (Union[int, Tuple[int, int]]): The step size of the window.
     """
-    assert len(patch.shape) == 4, f"Patch must be a 4D tensor (b, c, h, w), got {patch.shape}"
-    return model(patch)
+    assert len(image.shape) == 4, f"Image must be a 4D tensor (1, c, h, w), got {image.shape}"
+    window_size = (int(window_size), int(window_size)) if isinstance(window_size, (int, float)) else window_size
+    stride = (int(stride), int(stride)) if isinstance(stride, (int, float)) else stride
+    window_size = tuple(window_size)
+    stride = tuple(stride)
+    assert isinstance(window_size, tuple) and len(window_size) == 2 and window_size[0] > 0 and window_size[1] > 0, f"Window size must be a positive integer tuple (h, w), got {window_size}"
+    assert isinstance(stride, tuple) and len(stride) == 2 and stride[0] > 0 and stride[1] > 0, f"Stride must be a positive integer tuple (h, w), got {stride}"
+    assert stride[0] <= window_size[0] and stride[1] <= window_size[1], f"Stride must be smaller than window size, got {stride} and {window_size}"
 
+    image_height, image_width = image.shape[-2:]
+    window_height, window_width = window_size
+    stride_height, stride_width = stride
 
-def _combine_patches(
-    preds: List[Tuple[int, int, Tensor]],
-    image_size: Tuple[int, int],
-    window_size: Tuple[int, int],
-    reduction: int = 1,
-    strategy: str = "mean",
-) -> Tensor:
-    """
-    Combine the density maps of the patches into a single density map.
+    num_rows = int(np.ceil((image_height - window_height) / stride_height) + 1)
+    num_cols = int(np.ceil((image_width - window_width) / stride_width) + 1)
 
-    Args:
-        density_maps (List[Tuple[int, int, Tensor]]): The list of density maps of the patches.
-        image_size (Tuple[int, int]): The size of the image.
-        window_size (Tuple[int, int]): The size of the window.
-        step_size (Tuple[int, int]): The step size of the window.
-        strategy (str, optional): The strategy to use to aggregate the predictions. Defaults to "mean".
-    """
-    assert strategy in ["mean", "max"], f"Strategy must be either 'mean' or 'max', got {strategy}"
-    channels, dtype, device = preds[0][2].shape[-3], preds[0][2].dtype, preds[0][2].device
-    img_h, img_w = image_size
-    p_h, p_w = window_size
+    reduction = model.reduction if hasattr(model, "reduction") else 1  # reduction factor of the model. For example, if reduction = 8, then the density map will be reduced by 8x.
+    windows = []
+    for i in range(num_rows):
+        for j in range(num_cols):
+            x_start, y_start = i * stride_height, j * stride_width
+            x_end, y_end = x_start + window_height, y_start + window_width
+            if x_end > image_height:
+                x_start, x_end = image_height - window_height, image_height
+            if y_end > image_width:
+                y_start, y_end = image_width - window_width, image_width
 
-    img_h, img_w = img_h // reduction, img_w // reduction
-    p_h, p_w = p_h // reduction, p_w // reduction
+            window = image[:, :, x_start:x_end, y_start:y_end]
+            windows.append(window)
 
-    full_map = torch.zeros((1, channels, img_h, img_w), dtype=dtype, device=device)
-    count_map = torch.zeros(1, channels, img_h, img_w, dtype=dtype, device=device)  # keep track of how many times a pixel has been visited
-    max_map = torch.zeros(1, channels, img_h, img_w, dtype=dtype, device=device)
+    windows = torch.cat(windows, dim=0).to(image.device)  # batched windows, shape: (num_windows, c, h, w)
 
-    for x, y, pred in preds:
-        x, y = x // reduction, y // reduction
-        full_map[:, :, y : y + p_h, x : x + p_w] += pred
-        count_map[:, :, y : y + p_h, x : x + p_w] += 1
-        max_map[:, :, y : y + p_h, x : x + p_w] = torch.maximum(
-            max_map[:, :, y : y + p_h, x : x + p_w], pred
-        )
+    model.eval()
+    with torch.no_grad():
+        preds = model(windows)
+    preds = preds.cpu().detach().numpy()
 
-    return full_map / count_map if strategy == "mean" else max_map
+    # assemble the density map
+    pred_map = np.zeros((preds.shape[1], image_height // reduction, image_width // reduction), dtype=np.float32)
+    count_map = np.zeros((preds.shape[1], image_height // reduction, image_width // reduction), dtype=np.float32)
+    idx = 0
+    for i in range(num_rows):
+        for j in range(num_cols):
+            x_start, y_start = i * stride_height, j * stride_width
+            x_end, y_end = x_start + window_height, y_start + window_width
+            if x_end > image_height:
+                x_start, x_end = image_height - window_height, image_height
+            if y_end > image_width:
+                y_start, y_end = image_width - window_width, image_width
+
+            pred_map[:, (x_start // reduction): (x_end // reduction), (y_start // reduction): (y_end // reduction)] += preds[idx, :, :, :]
+            count_map[:, (x_start // reduction): (x_end // reduction), (y_start // reduction): (y_end // reduction)] += 1.
+            idx += 1
+
+    pred_map /= count_map  # average the overlapping regions
+    return torch.tensor(pred_map).unsqueeze(0)  # shape: (1, 1, h // reduction, w // reduction)

@@ -12,7 +12,7 @@ import datasets
 
 
 def get_dataloader(args: ArgumentParser, split: str = "train", ddp: bool = False) -> Union[Tuple[DataLoader, Union[DistributedSampler, None]], DataLoader]:
-    if split == "train" and args.augment:  # train, strong augmentation
+    if split == "train":  # train, strong augmentation
         transforms = Compose([
             datasets.RandomResizedCrop((args.input_size, args.input_size), scale=(args.min_scale, args.max_scale)),
             datasets.RandomHorizontalFlip(),
@@ -22,21 +22,22 @@ def get_dataloader(args: ArgumentParser, split: str = "train", ddp: bool = False
                 datasets.PepperSaltNoise(saltiness=args.saltiness, spiciness=args.spiciness),
             ], p=(args.jitter_prob, args.blur_prob, args.noise_prob)),
         ])
-    elif split == "train":  # train, weak augmentation
-        transforms = datasets.RandomCrop((args.input_size, args.input_size))
-    else:  # validation
+
+    elif args.sliding_window:
         if args.resize_to_multiple:
-            transforms = datasets.Resize2Multiple(args.window_size)
+            transforms = datasets.Resize2Multiple(args.window_size, stride=args.stride)
         elif args.zero_pad_to_multiple:
-            transforms = datasets.ZeroPad2Multiple(args.window_size)
+            transforms = datasets.ZeroPad2Multiple(args.window_size, stride=args.stride)
         else:
             transforms = None
+
+    else:
+        transforms = None
 
     dataset = datasets.Crowd(
         dataset=args.dataset,
         split=split,
         transforms=transforms,
-        percentage=args.percentage,
         sigma=None,
         return_filename=False,
         num_crops=args.num_crops if split == "train" else 1,

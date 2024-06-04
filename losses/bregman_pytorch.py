@@ -1,11 +1,13 @@
 # Code modified from https://github.com/cvlab-stonybrook/DM-Count/blob/master/losses/bregman_pytorch.py
 import torch
 from torch import Tensor
+from torch.cuda.amp import autocast
 from typing import Union, Tuple, Dict
 
 M_EPS = 1e-16
 
 
+@autocast(enabled=True, dtype=torch.float32)  # avoid numerical instability
 def sinkhorn(
     a: Tensor,
     b: Tensor,
