@@ -16,6 +16,7 @@ At the [release page](https://github.com/Yiming-M/CLIP-EBC/releases), you can fi
 | ------------------------------|---------|----------|
 | DMCount-EBC (based on VGG-19) | 83.7    | 376.0    |
 | [CLIP-EBC (based on ResNet50)](https://www.crowdbenchmark.com/resultdetail.html?rid=149)  | 75.8    | 367.3    |
+| [CLIP-EBC (based on ViT-B/16)](https://www.crowdbenchmark.com/resultdetail.html?rid=152) | **61.2**    | **278.3** |
 
 ## Visualization
 
