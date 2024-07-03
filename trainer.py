@@ -54,6 +54,7 @@ parser.add_argument("--noise_prob", type=float, default=0.5, help="The probabili
 # Parameters for evaluation
 parser.add_argument("--sliding_window", action="store_true", help="Use sliding window strategy for evaluation.")
 parser.add_argument("--stride", type=int, default=None, help="The stride for sliding window strategy.")
+parser.add_argument("--window_size", type=int, default=None, help="The window size for in prediction.")
 parser.add_argument("--resize_to_multiple", action="store_true", help="Resize the image to the nearest multiple of the input size.")
 parser.add_argument("--zero_pad_to_multiple", action="store_true", help="Zero pad the image to the nearest multiple of the input size.")
 
@@ -223,7 +224,7 @@ def main():
         args.prompt_type = None
 
     if args.sliding_window:
-        args.window_size = args.input_size
+        args.window_size = args.input_size if args.window_size is None else args.window_size
         args.stride = args.input_size if args.stride is None else args.stride
         assert not (args.zero_pad_to_multiple and args.resize_to_multiple), "Cannot use both zero pad and resize to multiple."
 
