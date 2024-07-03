@@ -44,6 +44,14 @@ If you find this work useful, please consider to cite:
 
 ### 1. Preprocessing
 
+#### 1.0 Requirements
+
+```bash
+conda create -n clip_ebc python=3.12.4  # Create a new conda environment. You may use `mamba` instead of `conda` to speed up the installation.
+conda activate clip_ebc  # Activate the environment.
+pip install -r requirements.txt  # Install the required packages.
+```
+
 #### 1.1 Downloading the datasets
 
 Download all datasets and unzipped them into the folder `data`.
@@ -109,7 +117,7 @@ python trainer.py \
     --dataset nwpu \
     --count_loss dmcount &&
 
-# Train the CLIP-EBC (ResNet50) model on ShanghaiTech A.
+# Train the CLIP-EBC (ResNet50) model on ShanghaiTech A. Use `--dataset shb` if you want to train on ShanghaiTech B.
 python trainer.py \
     --model clip_resnet50 --input_size 448 --reduction 8 --truncation 4 --anchor_points average --prompt_type word \
     --dataset sha \
@@ -211,14 +219,17 @@ python trainer.py \
 To evaluate get the result on NWPU Test, use the `test_nwpu.py` instead.
 
 ```bash
+# Test CNN-based models
 python test_nwpu.py \
     --model vgg19_ae --input_size 448 --reduction 8 --truncation 4 --anchor_points average \
     --weight_path ./checkpoints/nwpu/vgg19_ae_448_8_4_fine_1.0_dmcount_aug/best_mae.pth
     --device cuda:0 &&
 
+# Test ViT-based models. Need to use the sliding window prediction method.
 python test_nwpu.py \
-    --model clip_resnet50 --input_size 448 --reduction 8 --truncation 4 --anchor_points average --prompt_type word \
-    --weight_path ./checkpoints/nwpu/clip_resnet50_word_448_8_4_fine_1.0_dmcount_aug/best_mae.pth
+    --model clip_vit_b_16 --input_size 224 --reduction 8 --truncation 4 --anchor_points average --prompt_type word \
+    --num_vpt 32 --vpt_drop 0.0 --sliding_window --stride 224 \
+    --weight_path ./checkpoints/nwpu/clip_vit_b_16_word_224_8_4_fine_1.0_dmcount/best_rmse.pth
     --device cuda:0
 ```
 
